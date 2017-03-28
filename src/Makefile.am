@@ -1,8 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4
 
 AM_CXXFLAGS = \
-	-O0 \
-	-g \
 	-std=c++11
 
 AM_LDFLAGS = \

@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CFLAGS = -I$(top_srcdir)/src -O0 -g
+AM_CFLAGS = -I$(top_srcdir)/src
 
 bin_PROGRAMS = main
 main_SOURCES = main.c

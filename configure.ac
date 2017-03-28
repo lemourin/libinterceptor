@@ -6,8 +6,9 @@ AC_LANG(C++)
 
 LT_INIT([win32-dll shared disable-static])
 
+CXXFLAGS="-O0 -g"
+CFLAGS="-O0 -g"
 AC_PROG_CXX
-
 AX_CXX_COMPILE_STDCXX_11
 
 AC_CONFIG_FILES([
