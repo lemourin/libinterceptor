@@ -15,7 +15,7 @@ int my_puts2(const char *s) {
 int main() {
     puts_orig = intercept_function("puts", my_puts);
     puts_orig2 = intercept_function("puts", my_puts2);
-    //puts_orig("aaa");
+    puts_orig("aaa");
     puts("bbb");
     unintercept_function("puts");
     puts("ccc");
