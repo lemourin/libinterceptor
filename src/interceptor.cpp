@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <algorithm>
 #include <cassert>
-#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -65,16 +64,6 @@ relevant_data extract_data(ElfW(Dyn) * addr) {
   return d;
 }
 
-unsigned long elf_hash(const unsigned char *name) {
-  unsigned long h = 0, g;
-  while (*name) {
-    h = (h << 4) + *name++;
-    if (g = h & 0xf0000000) h ^= g >> 24;
-    h &= ~g;
-  }
-  return h;
-}
-
 void unlock_memory() {
   std::fstream file("/proc/" + std::to_string(getpid()) + "/maps",
                     std::fstream::in);
@@ -99,7 +88,6 @@ void *intercept_function(const char *name, void *new_func) {
   dl_iterate_phdr(
       [](dl_phdr_info *info, size_t size, void *ptr) {
         data *d = static_cast<data *>(ptr);
-        // std::cout << "lib name: << info->dlpi_name << "\n";
         for (size_t i = 0; i < info->dlpi_phnum; i++) {
           auto segment = info->dlpi_phdr + i;
           if (segment->p_type == PT_DYNAMIC) {
@@ -111,12 +99,11 @@ void *intercept_function(const char *name, void *new_func) {
                 auto current = r.jmprel_table + i;
                 auto symbol = r.sym_table + ELF64_R_SYM(current->r_info);
                 if (r.str_table + symbol->st_name == std::string(d->name)) {
-                  // std::cout << "puts jmprel " << ELF64_R_SYM(current->r_info)
-                  //          << "\n";
+                  auto address = (uint64_t)info->dlpi_addr + current->r_offset;
+                  d->ret_val = *((uint64_t *)address);
+                  *((uint64_t *)address) = (uint64_t)d->new_func;
                 }
               }
-            } else {
-              // std::cout << "no jmprel table\n";
             }
             if (r.rela_table) {
               assert(r.rela_size % sizeof(ElfW(Rela)) == 0);
@@ -125,7 +112,6 @@ void *intercept_function(const char *name, void *new_func) {
                 auto symbol = r.sym_table + ELF64_R_SYM(current->r_info);
                 if (r.str_table + symbol->st_name == std::string(d->name)) {
                   auto address = (uint64_t)info->dlpi_addr + current->r_offset;
-                  //std::cout << "swapping func " << std::hex << address << "\n";
                   d->ret_val = *((uint64_t *)address);
                   *((uint64_t *)address) = (uint64_t)d->new_func;
                 }
