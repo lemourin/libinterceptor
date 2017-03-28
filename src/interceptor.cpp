@@ -9,10 +9,14 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
 
 namespace {
+
+std::map<std::string, void *> original_func_addr;
+
 struct data {
   const char *name;
   void *new_func;
@@ -133,7 +137,13 @@ void *intercept_function(const char *name, void *new_func) {
         return 0;
       },
       &d);
+  if (original_func_addr.find(name) == std::end(original_func_addr))
+    original_func_addr[name] = (void *)d.ret_val;
   return (void *)d.ret_val;
 }
 
-void unintercept_function(const char *name) {}
+void unintercept_function(const char *name) {
+  if (original_func_addr.find(name) != std::end(original_func_addr)) {
+    intercept_function(name, original_func_addr[name]);
+  }
+}
