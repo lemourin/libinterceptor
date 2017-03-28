@@ -64,26 +64,33 @@ relevant_data extract_data(ElfW(Dyn) * addr) {
   return d;
 }
 
-void unlock_memory() {
+uint mprotect_ptr(uint64_t ptr, uint mask) {
   std::fstream file("/proc/" + std::to_string(getpid()) + "/maps",
                     std::fstream::in);
   std::string line;
   while (std::getline(file, line)) {
     std::stringstream stream(line);
-    std::string range;
-    stream >> range;
+    std::string range, attribs;
+    stream >> range >> attribs;
     auto it = range.find_first_of('-');
     uint64_t begin = std::stoull(std::string(range.begin(), range.begin() + it),
                                  nullptr, 16);
     uint64_t end = std::stoull(std::string(range.begin() + it + 1, range.end()),
                                nullptr, 16);
-    mprotect((void *)begin, end - begin, PROT_WRITE | PROT_READ | PROT_EXEC);
+    if (ptr >= begin && ptr < end) {
+      uint current = 0;
+      if (attribs[0] == 'r') current |= PROT_READ;
+      if (attribs[1] == 'w') current |= PROT_WRITE;
+      if (attribs[2] == 'x') current |= PROT_EXEC;
+      mprotect((void *)begin, end - begin, mask);
+      return current;
+    }
   }
+  return 0;
 }
 }
 
 void *intercept_function(const char *name, void *new_func) {
-  unlock_memory();
   data d = {name, new_func};
   dl_iterate_phdr(
       [](dl_phdr_info *info, size_t size, void *ptr) {
@@ -101,7 +108,9 @@ void *intercept_function(const char *name, void *new_func) {
                 if (r.str_table + symbol->st_name == std::string(d->name)) {
                   auto address = (uint64_t)info->dlpi_addr + current->r_offset;
                   d->ret_val = *((uint64_t *)address);
+                  auto t = mprotect_ptr(address, PROT_WRITE);
                   *((uint64_t *)address) = (uint64_t)d->new_func;
+                  mprotect_ptr(address, t);
                 }
               }
             }
@@ -113,7 +122,9 @@ void *intercept_function(const char *name, void *new_func) {
                 if (r.str_table + symbol->st_name == std::string(d->name)) {
                   auto address = (uint64_t)info->dlpi_addr + current->r_offset;
                   d->ret_val = *((uint64_t *)address);
+                  auto t = mprotect_ptr(address, PROT_WRITE);
                   *((uint64_t *)address) = (uint64_t)d->new_func;
+                  mprotect_ptr(address, t);
                 }
               }
             }
