@@ -125,8 +125,7 @@ void *intercept_function(const char *name, void *new_func) {
                 auto symbol = r.sym_table + ELF64_R_SYM(current->r_info);
                 if (r.str_table + symbol->st_name == std::string(d->name)) {
                   auto address = (uint64_t)info->dlpi_addr + current->r_offset;
-                  // std::cout << "swapping func " << std::hex << address <<
-                  // "\n";
+                  //std::cout << "swapping func " << std::hex << address << "\n";
                   d->ret_val = *((uint64_t *)address);
                   *((uint64_t *)address) = (uint64_t)d->new_func;
                 }
@@ -137,9 +136,12 @@ void *intercept_function(const char *name, void *new_func) {
         return 0;
       },
       &d);
-  if (original_func_addr.find(name) == std::end(original_func_addr))
+  if (original_func_addr.find(name) == std::end(original_func_addr)) {
     original_func_addr[name] = (void *)d.ret_val;
-  return (void *)d.ret_val;
+    return (void *)d.ret_val;
+  } else {
+    return original_func_addr[name];
+  }
 }
 
 void unintercept_function(const char *name) {
