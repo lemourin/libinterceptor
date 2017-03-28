@@ -1,6 +1,7 @@
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CXXFLAGS =
+AM_CXXFLAGS = \
+	-std=c++11
 
 AM_LDFLAGS = \
 	-no-undefined
