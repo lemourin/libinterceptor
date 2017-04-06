@@ -97,14 +97,6 @@ void force_assign(uint64_t address, uint64_t value) {
   mprotect_ptr(address, t);
 }
 
-template <class T>
-T force_read(uint64_t address) {
-  auto t = mprotect_ptr(address, PROT_READ);
-  T result = *((T *)address);
-  mprotect_ptr(address, t);
-  return result;
-}
-
 void find_relocation(ElfW(Rela) * relocs, size_t size, dl_phdr_info *info,
                      const relevant_data &r, data *d) {
   for (size_t i = 0; i < size; i++) {
@@ -124,7 +116,6 @@ void *intercept_function(const char *name, void *new_func) {
   dl_iterate_phdr(
       [](dl_phdr_info *info, size_t size, void *ptr) {
         data *d = static_cast<data *>(ptr);
-        // std::cout << "library name: " << info->dlpi_name << "\n";
         for (size_t i = 0; i < info->dlpi_phnum; i++) {
           auto segment = info->dlpi_phdr + i;
           if (segment->p_type == PT_DYNAMIC) {
@@ -139,16 +130,6 @@ void *intercept_function(const char *name, void *new_func) {
               assert(r.jmprel_size % sizeof(ElfW(Rela)) == 0);
               find_relocation(r.jmprel_table,
                               r.jmprel_size / sizeof(ElfW(Rela)), info, r, d);
-            }
-            static bool f = false;
-            if (r.sym_table && info->dlpi_name != std::string("")) {
-              f = true;
-              /*for (size_t i = 0; i < 1000; i++) {
-                auto current = r.sym_table + i;
-                std::cout << r.str_table + current->st_name << " "
-                          << (void *)current->st_value << " "
-                          << current->st_shndx << "\n";
-              } */
             }
           }
         }
