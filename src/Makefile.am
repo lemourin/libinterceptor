@@ -4,7 +4,8 @@ AM_CXXFLAGS = \
 	-std=c++11
 
 AM_LDFLAGS = \
-	-no-undefined
+	-no-undefined \
+	-ldl
 
 lib_LTLIBRARIES = libinterceptor.la
 

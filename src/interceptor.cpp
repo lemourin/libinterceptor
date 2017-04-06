@@ -1,11 +1,13 @@
 #include "interceptor.h"
 
+#include <dlfcn.h>
 #include <elf.h>
 #include <link.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <algorithm>
 #include <cassert>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -88,6 +90,33 @@ uint mprotect_ptr(uint64_t ptr, uint mask) {
   }
   return 0;
 }
+
+void force_assign(uint64_t address, uint64_t value) {
+  auto t = mprotect_ptr(address, PROT_WRITE);
+  *((uint64_t *)address) = value;
+  mprotect_ptr(address, t);
+}
+
+template <class T>
+T force_read(uint64_t address) {
+  auto t = mprotect_ptr(address, PROT_READ);
+  T result = *((T *)address);
+  mprotect_ptr(address, t);
+  return result;
+}
+
+void find_relocation(ElfW(Rela) * relocs, size_t size, dl_phdr_info *info,
+                     const relevant_data &r, data *d) {
+  for (size_t i = 0; i < size; i++) {
+    auto current = relocs + i;
+    auto symbol = r.sym_table + ELF64_R_SYM(current->r_info);
+    if (r.str_table + symbol->st_name == std::string(d->name)) {
+      auto address = (uint64_t)info->dlpi_addr + current->r_offset;
+      d->ret_val = (uint64_t)dlsym(RTLD_NEXT, d->name);
+      force_assign(address, (uint64_t)d->new_func);
+    }
+  }
+}
 }
 
 void *intercept_function(const char *name, void *new_func) {
@@ -95,38 +124,31 @@ void *intercept_function(const char *name, void *new_func) {
   dl_iterate_phdr(
       [](dl_phdr_info *info, size_t size, void *ptr) {
         data *d = static_cast<data *>(ptr);
+        // std::cout << "library name: " << info->dlpi_name << "\n";
         for (size_t i = 0; i < info->dlpi_phnum; i++) {
           auto segment = info->dlpi_phdr + i;
           if (segment->p_type == PT_DYNAMIC) {
             auto r = extract_data(
                 (ElfW(Dyn) *)((char *)info->dlpi_addr + segment->p_vaddr));
-            if (r.jmprel_table) {
-              assert(r.jmprel_size % sizeof(ElfW(Rela)) == 0);
-              for (size_t i = 0; i < r.jmprel_size / sizeof(ElfW(Rela)); i++) {
-                auto current = r.jmprel_table + i;
-                auto symbol = r.sym_table + ELF64_R_SYM(current->r_info);
-                if (r.str_table + symbol->st_name == std::string(d->name)) {
-                  auto address = (uint64_t)info->dlpi_addr + current->r_offset;
-                  d->ret_val = *((uint64_t *)address);
-                  auto t = mprotect_ptr(address, PROT_WRITE);
-                  *((uint64_t *)address) = (uint64_t)d->new_func;
-                  mprotect_ptr(address, t);
-                }
-              }
-            }
             if (r.rela_table) {
               assert(r.rela_size % sizeof(ElfW(Rela)) == 0);
-              for (size_t i = 0; i < r.rela_size / sizeof(ElfW(Rela)); i++) {
-                auto current = r.rela_table + i;
-                auto symbol = r.sym_table + ELF64_R_SYM(current->r_info);
-                if (r.str_table + symbol->st_name == std::string(d->name)) {
-                  auto address = (uint64_t)info->dlpi_addr + current->r_offset;
-                  d->ret_val = *((uint64_t *)address);
-                  auto t = mprotect_ptr(address, PROT_WRITE);
-                  *((uint64_t *)address) = (uint64_t)d->new_func;
-                  mprotect_ptr(address, t);
-                }
-              }
+              find_relocation(r.rela_table, r.rela_size / sizeof(ElfW(Rela)),
+                              info, r, d);
+            }
+            if (r.jmprel_table) {
+              assert(r.jmprel_size % sizeof(ElfW(Rela)) == 0);
+              find_relocation(r.jmprel_table,
+                              r.jmprel_size / sizeof(ElfW(Rela)), info, r, d);
+            }
+            static bool f = false;
+            if (r.sym_table && info->dlpi_name != std::string("")) {
+              f = true;
+              /*for (size_t i = 0; i < 1000; i++) {
+                auto current = r.sym_table + i;
+                std::cout << r.str_table + current->st_name << " "
+                          << (void *)current->st_value << " "
+                          << current->st_shndx << "\n";
+              } */
             }
           }
         }
