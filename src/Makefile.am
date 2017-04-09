@@ -5,6 +5,7 @@ AM_CXXFLAGS = \
 
 AM_LDFLAGS = \
 	-no-undefined \
+	-avoid-version \
 	-ldl
 
 lib_LTLIBRARIES = libinterceptor.la
