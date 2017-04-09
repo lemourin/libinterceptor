@@ -9,7 +9,7 @@ Opis rozwiązania
   przed pisaniem po `DT_PLTGOT` zmieniam uprawnienia do pisania po nim za  
   pomocą `mprotect`
 - jako adres nadpisywanego symbolu zwracam wartość funkcji  
-  `dlsym(RTLD_SYM, nazwa_funkcji)`
+  `dlsym(RTLD_NEXT, nazwa_funkcji)`
 
 Budowanie
 ---------
